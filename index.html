@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="ar">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>نظام إدارة المصاريف الشخصي</title>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+  :root{
+    --bg:#f4f6f8;
+    --card:#ffffff;
+    --accent:#2b8cff;
+    --danger:#e74c3c;
+    --muted:#95a5a6;
+    --text:#222;
+    --success:#27ae60;
+    font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    line-height:1.4;
+    padding:20px;
+  }
+
+  .container{
+    max-width:1100px;
+    margin:0 auto;
+  }
+
+  header{
+    text-align:center;
+    margin-bottom:18px;
+  }
+
+  h1{margin:0;font-size:24px}
+  .subtitle{margin:6px 0 16px;color:var(--muted)}
+
+  .card{
+    background:var(--card);
+    border-radius:8px;
+    padding:14px;
+    box-shadow:0 2px 6px rgba(0,0,0,0.04);
+    margin-bottom:14px;
+  }
+
+  .top-cards{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:12px;
+    margin-bottom:14px;
+  }
+
+  .money-row{
+    display:flex;
+    gap:8px;
+    align-items:center;
+  }
+
+  .money-row input{
+    flex:1;
+    padding:8px;
+    border-radius:6px;
+    border:1px solid #ddd;
+  }
+
+  button{
+    padding:8px 12px;
+    border:none;
+    border-radius:6px;
+    background:var(--accent);
+    color:#fff;
+    cursor:pointer;
+  }
+
+  button.muted{background:#e0e6ee;color:#333}
+  button.danger{background:var(--danger)}
+
+  .big-num{
+    font-size:22px;
+    font-weight:700;
+    margin-top:6px;
+  }
+
+  .summary{display:flex;flex-direction:column;gap:8px}
+  .summary div{font-weight:600}
+
+  .add-transaction h2, .transactions h2, .charts h2{margin-top:0}
+
+  .form-row{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    margin-bottom:10px;
+  }
+
+  .form-row label{width:110px}
+  .form-row input[type="text"],
+  .form-row input[type="number"],
+  .form-row input[type="date"],
+  .form-row select{
+    flex:1;
+    padding:8px;
+    border-radius:6px;
+    border:1px solid #ddd;
+  }
+
+  .filters{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    align-items:center;
+    margin-bottom:10px;
+  }
+
+  .table-wrap{overflow:auto}
+  table{
+    width:100%;
+    border-collapse:collapse;
+  }
+  th,td{
+    padding:8px 10px;
+    border-bottom:1px solid #f0f0f0;
+    text-align:center;
+  }
+  th{background:#fafafa;font-weight:700}
+
+  .tx-actions{display:flex;gap:10px;justify-content:flex-start;margin-top:10px}
+
+  .charts-row{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:12px;
+  }
+
+  .chart-card{padding:8px}
+
+  footer{text-align:center;margin-top:12px;color:var(--muted);font-size:13px}
+
+  /* responsive */
+  @media (max-width:900px){
+    .top-cards{grid-template-columns:1fr;}
+    .charts-row{grid-template-columns:1fr;}
+    .form-row{flex-direction:column;align-items:stretch}
+    .form-row label{width:auto}
+  }
+
+  /* RTL adjustments for buttons inside table cell */
+  td button{margin:0 4px}
+  </style>
+</head>
+<body dir="rtl">
+  <div class="container">
+    <header>
+      <h1>نظام إدارة المصاريف الشخصي</h1>
+      <p class="subtitle">سجل كل ما تشتريه أو تربحه واطّلع على تقارير واضحة.</p>
+    </header>
+
+    <section class="top-cards">
+      <div class="card">
+        <label>الرصيد الحالي</label>
+        <div id="balance" class="big-num">0</div>
+      </div>
+
+      <div class="card">
+        <label>ملخص</label>
+        <div class="summary">
+          <div>الدخل: <span id="totalIncome">0</span></div>
+          <div>المصاريف: <span id="totalExpense">0</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="add-transaction card">
+      <h2>إضافة عملية جديدة</h2>
+      <form id="transactionForm">
+        <div class="form-row">
+          <label>نوع العملية</label>
+          <select id="type" required>
+            <option value="expense">مصروف</option>
+            <option value="income">دخل</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>المبلغ</label>
+          <input id="amount" type="number" min="0" step="0.01" required />
+        </div>
+        <div class="form-row">
+          <label>الفئة</label>
+          <input id="category" type="text" placeholder="مثال: أكل، ملابس، مشروع..." />
+        </div>
+        <div class="form-row">
+          <label>التاريخ</label>
+          <input id="date" type="date" required />
+        </div>
+        <div class="form-row">
+          <label>ملاحظة</label>
+          <input id="note" type="text" placeholder="اختياري" />
+        </div>
+        <div class="form-row">
+          <button type="submit" id="addBtn">أضف العملية</button>
+          <button type="button" id="clearFormBtn" class="muted">مسح الحقول</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="transactions card">
+      <h2>قائمة العمليات</h2>
+      <div class="filters">
+        <label>من: <input id="filterFrom" type="date" /></label>
+        <label>إلى: <input id="filterTo" type="date" /></label>
+        <label>فئة: <input id="filterCategory" type="text" placeholder="كل الفئات" /></label>
+        <button id="applyFilter">تطبيق</button>
+        <button id="resetFilter" class="muted">إعادة ضبط</button>
+      </div>
+
+      <div class="table-wrap">
+        <table id="txTable">
+          <thead>
+            <tr>
+              <th>التاريخ</th>
+              <th>النوع</th>
+              <th>الفئة</th>
+              <th>المبلغ</th>
+              <th>ملاحظة</th>
+              <th>إجراءات</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="tx-actions">
+        <button id="exportCsv">تصدير CSV</button>
+        <button id="clearAll" class="danger">حذف كل البيانات</button>
+      </div>
+    </section>
+
+    <section class="charts card">
+      <h2>تقارير ورسوم بيانية</h2>
+      <div class="charts-row">
+        <div class="chart-card">
+          <h3>مصاريف حسب الفئة</h3>
+          <canvas id="pieChart"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>تطور الرصيد عبر الزمن</h3>
+          <canvas id="lineChart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <small>نسخة واجهة أمامية - البيانات محفوظة محلياً على متصفحك</small>
+    </footer>
+  </div>
+
+  <script>
+  // Simple personal finance frontend using localStorage
+  // Author: ChatGPT (provided code merged into single file)
+
+  (function () {
+    // Keys
+    const STORAGE_KEY = "pf_transactions_v1";
+    const CAPITAL_KEY = "pf_initial_capital_v1";
+
+    // Elements
+    const balanceEl = document.getElementById("balance");
+    const totalIncomeEl = document.getElementById("totalIncome");
+    const totalExpenseEl = document.getElementById("totalExpense");
+
+    const txForm = document.getElementById("transactionForm");
+    const typeEl = document.getElementById("type");
+    const amountEl = document.getElementById("amount");
+    const categoryEl = document.getElementById("category");
+    const dateEl = document.getElementById("date");
+    const noteEl = document.getElementById("note");
+    const addBtn = document.getElementById("addBtn");
+    const clearFormBtn = document.getElementById("clearFormBtn");
+
+    const txTableBody = document.querySelector("#txTable tbody");
+    const filterFrom = document.getElementById("filterFrom");
+    const filterTo = document.getElementById("filterTo");
+    const filterCategory = document.getElementById("filterCategory");
+    const applyFilterBtn = document.getElementById("applyFilter");
+    const resetFilterBtn = document.getElementById("resetFilter");
+    const exportCsvBtn = document.getElementById("exportCsv");
+    const clearAllBtn = document.getElementById("clearAll");
+
+    // Charts
+    let pieChart = null;
+    let lineChart = null;
+
+    // Data helpers
+    function loadTransactions() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        console.error("Load transactions error", e);
+        return [];
+      }
+    }
+    function saveTransactions(arr) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+    }
+    function loadCapital() {
+      const val = localStorage.getItem(CAPITAL_KEY);
+      return val ? Number(val) : 0;
+    }
+
+    // Utilities
+    function uid() {
+      return "tx_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+    }
+    function formatCurrency(v) {
+      return Number(v).toLocaleString(undefined, {minimumFractionDigits:0, maximumFractionDigits:2});
+    }
+
+    // Business logic
+    function calculateSummary(transactions) {
+      let income = 0, expense = 0;
+      for (const t of transactions) {
+        const amt = Number(t.amount) || 0;
+        if (t.type === "income") income += amt;
+        else expense += amt;
+      }
+      const balance = income - expense;
+      return { income, expense, balance };
+    }
+
+    // Render functions
+    function renderSummary() {
+      const tx = loadTransactions();
+      const s = calculateSummary(tx);
+      balanceEl.textContent = formatCurrency(s.balance);
+      totalIncomeEl.textContent = formatCurrency(s.income);
+      totalExpenseEl.textContent = formatCurrency(s.expense);
+    }
+
+    function renderTable(filter = {}) {
+      const rows = loadTransactions();
+      const filtered = rows.filter(r => {
+        if (filter.category && filter.category.trim() !== "") {
+          if (!r.category) return false;
+          const cat = r.category.toLowerCase();
+          if (!cat.includes(filter.category.toLowerCase())) return false;
+        }
+        if (filter.from) {
+          if (new Date(r.date) < new Date(filter.from)) return false;
+        }
+        if (filter.to) {
+          if (new Date(r.date) > new Date(filter.to)) return false;
+        }
+        return true;
+      });
+      filtered.sort((a,b)=> new Date(b.date) - new Date(a.date));
+      txTableBody.innerHTML = "";
+      for (const t of filtered) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${t.date}</td>
+          <td>${t.type === 'income' ? 'دخل' : 'مصروف'}</td>
+          <td>${escapeHtml(t.category || '')}</td>
+          <td>${formatCurrency(t.amount)}</td>
+          <td>${escapeHtml(t.note || '')}</td>
+          <td>
+            <button class="editBtn" data-id="${t.id}">تعديل</button>
+            <button class="delBtn" data-id="${t.id}">حذف</button>
+          </td>
+        `;
+        txTableBody.appendChild(tr);
+      }
+      // wire buttons
+      txTableBody.querySelectorAll(".delBtn").forEach(btn=>{
+        btn.addEventListener("click", ()=> {
+          const id = btn.dataset.id;
+          deleteTransaction(id);
+        });
+      });
+      txTableBody.querySelectorAll(".editBtn").forEach(btn=>{
+        btn.addEventListener("click", ()=> {
+          const id = btn.dataset.id;
+          startEditTransaction(id);
+        });
+      });
+    }
+
+    // Charting
+    function renderCharts(filter = {}) {
+      const tx = loadTransactions();
+      const filtered = tx.filter(r => {
+        if (filter.category && filter.category.trim() !== "") {
+          if (!r.category) return false;
+          const cat = r.category.toLowerCase();
+          if (!cat.includes(filter.category.toLowerCase())) return false;
+        }
+        if (filter.from) {
+          if (new Date(r.date) < new Date(filter.from)) return false;
+        }
+        if (filter.to) {
+          if (new Date(r.date) > new Date(filter.to)) return false;
+        }
+        return true;
+      });
+
+      // Pie: expenses by category
+      const expenseByCat = {};
+      for (const t of filtered) {
+        if (t.type !== "expense") continue;
+        const cat = (t.category && t.category.trim()) ? t.category.trim() : "غير مصنف";
+        expenseByCat[cat] = (expenseByCat[cat] || 0) + Number(t.amount || 0);
+      }
+      const pieLabels = Object.keys(expenseByCat);
+      const pieData = pieLabels.map(l=> expenseByCat[l]);
+
+      // Line: balance over time (days)
+      let running = 0;
+      const sortedTx = filtered.slice().sort((a,b)=> new Date(a.date)-new Date(b.date));
+      const lineLabels = [];
+      const lineData = [];
+      if (sortedTx.length === 0) {
+        lineLabels.push(new Date().toISOString().slice(0,10));
+        lineData.push(0);
+      } else {
+        const grouped = {};
+        for (const t of sortedTx) {
+          grouped[t.date] = grouped[t.date] || [];
+          grouped[t.date].push(t);
+        }
+        for (const d of Object.keys(grouped).sort()) {
+          for (const t of grouped[d]) {
+            if (t.type === "income") running += Number(t.amount || 0);
+            else running -= Number(t.amount || 0);
+          }
+          lineLabels.push(d);
+          lineData.push(Number(running.toFixed(2)));
+        }
+      }
+
+      // Render / update charts
+      const pieCtx = document.getElementById("pieChart").getContext("2d");
+      if (pieChart) pieChart.destroy();
+      pieChart = new Chart(pieCtx, {
+        type: 'pie',
+        data: {
+          labels: pieLabels,
+          datasets: [{
+            data: pieData
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { position:'bottom' } }
+        }
+      });
+
+      const lineCtx = document.getElementById("lineChart").getContext("2d");
+      if (lineChart) lineChart.destroy();
+      lineChart = new Chart(lineCtx, {
+        type: 'line',
+        data: {
+          labels: lineLabels,
+          datasets: [{
+            label: 'الرصيد',
+            data: lineData,
+            fill: false,
+            tension: 0.2,
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: { beginAtZero: false }
+          },
+          plugins: { legend: { display: false } }
+        }
+      });
+    }
+
+    // CRUD
+    function addTransaction(payload) {
+      const arr = loadTransactions();
+      arr.push(payload);
+      saveTransactions(arr);
+      renderAll();
+    }
+    function updateTransaction(id, updates) {
+      const arr = loadTransactions();
+      const idx = arr.findIndex(x=>x.id===id);
+      if (idx === -1) return;
+      arr[idx] = {...arr[idx], ...updates};
+      saveTransactions(arr);
+      renderAll();
+    }
+    function deleteTransaction(id) {
+      if (!confirm("هل متأكد من حذف العملية؟")) return;
+      let arr = loadTransactions();
+      arr = arr.filter(x=>x.id!==id);
+      saveTransactions(arr);
+      renderAll();
+    }
+    function clearAllData() {
+      if (!confirm("سينحذف كل البيانات المحفوظة محليًا. متابعة؟")) return;
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(CAPITAL_KEY);
+      renderAll();
+    }
+
+    // Edit mode
+    let editingId = null;
+    function startEditTransaction(id) {
+      const arr = loadTransactions();
+      const t = arr.find(x=>x.id===id);
+      if (!t) return alert("لم أجد العملية");
+      editingId = id;
+      typeEl.value = t.type;
+      amountEl.value = t.amount;
+      categoryEl.value = t.category || "";
+      dateEl.value = t.date;
+      noteEl.value = t.note || "";
+      addBtn.textContent = "حفظ التعديل";
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function finishEditMode() {
+      editingId = null;
+      txForm.reset();
+      addBtn.textContent = "أضف العملية";
+    }
+
+    // Export CSV
+    function exportCSV() {
+      const arr = loadTransactions();
+      if (!arr.length) return alert("لا توجد بيانات للتصدير");
+      const headers = ["id","date","type","category","amount","note"];
+      const lines = [headers.join(",")];
+      for (const r of arr) {
+        const line = [
+          r.id,
+          r.date,
+          r.type,
+          `"${(r.category||"").replace(/"/g,'""')}"`,
+          r.amount,
+          `"${(r.note||"").replace(/"/g,'""')}"`
+        ].join(",");
+        lines.push(line);
+      }
+      const blob = new Blob([lines.join("\n")], {type:'text/csv;charset=utf-8;'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `finance_export_${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    // Helpers
+    function escapeHtml(str){
+      if (!str) return "";
+      return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    }
+
+    // render all
+    function renderAll(filter = {}) {
+      renderSummary();
+      renderTable(filter);
+      renderCharts(filter);
+    }
+
+    // Event listeners
+    txForm.addEventListener("submit", (e)=>{
+      e.preventDefault();
+      const type = typeEl.value;
+      const amount = Number(amountEl.value);
+      const category = categoryEl.value.trim();
+      const date = dateEl.value;
+      const note = noteEl.value.trim();
+      if (!date) return alert("حدد تاريخ العملية");
+      if (!amount || amount <= 0) return alert("ادخل مبلغًا أكبر من صفر");
+      if (editingId) {
+        updateTransaction(editingId, { type, amount, category, date, note });
+        finishEditMode();
+        return;
+      }
+      const payload = {
+        id: uid(),
+        type, amount, category, date, note
+      };
+      addTransaction(payload);
+      txForm.reset();
+    });
+
+    clearFormBtn.addEventListener("click", ()=>{
+      txForm.reset();
+      finishEditMode();
+    });
+
+    applyFilterBtn.addEventListener("click", ()=>{
+      const f = {
+        from: filterFrom.value || null,
+        to: filterTo.value || null,
+        category: filterCategory.value || ""
+      };
+      renderAll(f);
+    });
+
+    resetFilterBtn.addEventListener("click", ()=>{
+      filterFrom.value = "";
+      filterTo.value = "";
+      filterCategory.value = "";
+      renderAll();
+    });
+
+    exportCsvBtn.addEventListener("click", exportCSV);
+    clearAllBtn.addEventListener("click", clearAllData);
+
+    // initialize date default to today for convenience
+    (function initDefaults(){
+      const today = new Date().toISOString().slice(0,10);
+      dateEl.value = today;
+      if(!filterTo.value) filterTo.value = "";
+    })();
+
+    // Create some sample categories/data if none present (optional)
+    (function seedIfEmpty(){
+      const arr = loadTransactions();
+      if (arr.length === 0) {
+        const seed = [
+          { id: uid(), type:'expense', amount:3000, category:"أكل", date: new Date(Date.now()-86400000*10).toISOString().slice(0,10), note:"غداء" },
+          { id: uid(), type:'expense', amount:15000, category:"ملابس", date: new Date(Date.now()-86400000*7).toISOString().slice(0,10), note:"قميص" },
+          { id: uid(), type:'income', amount:20000, category:"بيع", date: new Date(Date.now()-86400000*5).toISOString().slice(0,10), note:"بيعت سلعة" }
+        ];
+        saveTransactions(seed);
+      }
+    })();
+
+    // initial render
+    renderAll();
+
+  })();
+  </script>
+</body>
+</html>
